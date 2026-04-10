@@ -8,6 +8,7 @@ import { AISettingsDialog } from '@/components/ai-settings-dialog'
 import { InvoiceForm } from '@/components/invoice-form'
 import { InvoicePreview } from '@/components/invoice-preview'
 import { TemplateManager } from '@/components/template-manager'
+import { CustomerManager } from '@/components/customer-manager'
 import { InvoiceData, generateInvoiceNumber } from '@/lib/invoice-types'
 import { InvoiceTemplate } from '@/lib/template-types'
 import { getActiveTemplate } from '@/lib/template-store'
@@ -143,6 +144,7 @@ export default function InvoiceGenerator() {
 
             <div className="flex items-center gap-2">
               <TemplateManager onTemplateChange={handleTemplateChange} />
+              <CustomerManager />
               <label className="cursor-pointer">
                 <input
                   type="file"
@@ -228,6 +230,7 @@ export default function InvoiceGenerator() {
             <p><strong>2. Pull a model:</strong> Run <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">ollama pull llama3.2</code> in your terminal.</p>
             <p><strong>3. Configure:</strong> Click the settings icon above to configure your AI provider. Ollama runs on <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">http://localhost:11434</code> by default.</p>
             <p><strong>4. Templates:</strong> Click &quot;Templates&quot; to choose or create branded invoice designs with custom colors, layouts, and company info.</p>
+            <p><strong>5. Customers:</strong> Click &quot;Customers&quot; to save client details. Re-use them for future invoices with one click. Export/import as JSON for backup.</p>
           </div>
         </div>
       </footer>
