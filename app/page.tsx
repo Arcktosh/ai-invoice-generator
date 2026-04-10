@@ -59,27 +59,69 @@ export default function InvoiceGenerator() {
   const downloadPDF = async () => {
     if (!previewRef.current) return
 
-    const html2canvas = (await import('html2canvas')).default
+    try {
+      const html2canvas = (await import('html2canvas')).default
 
-    const canvas = await html2canvas(previewRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: template?.backgroundColor ?? '#ffffff',
-    })
+      // Clone the element and convert lab() colors to rgb for html2canvas compatibility
+      const clone = previewRef.current.cloneNode(true) as HTMLElement
+      clone.style.position = 'absolute'
+      clone.style.left = '-9999px'
+      clone.style.top = '0'
+      clone.style.width = `${previewRef.current.offsetWidth}px`
+      document.body.appendChild(clone)
 
-    const imgData = canvas.toDataURL('image/png')
+      // Convert all lab() colors to rgb by reading computed styles
+      const convertLabColors = (el: HTMLElement) => {
+        const computed = getComputedStyle(el)
+        const propsToCheck = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor']
+        
+        propsToCheck.forEach(prop => {
+          const value = computed.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
+          if (value && value.includes('lab(')) {
+            // Create a temp element to convert lab to rgb
+            const temp = document.createElement('div')
+            temp.style.color = value
+            document.body.appendChild(temp)
+            const rgb = getComputedStyle(temp).color
+            document.body.removeChild(temp)
+            ;(el.style as Record<string, string>)[prop] = rgb
+          }
+        })
 
-    const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
+        Array.from(el.children).forEach(child => {
+          if (child instanceof HTMLElement) convertLabColors(child)
+        })
+      }
 
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'px',
-      format: [canvas.width / 2, canvas.height / 2],
-    })
+      convertLabColors(clone)
 
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2)
-    pdf.save(`${invoice.invoiceNumber || 'invoice'}.pdf`)
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+
+      document.body.removeChild(clone)
+
+      const imgData = canvas.toDataURL('image/png')
+      const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
+
+      const pageWidth = 210
+      const imgWidth = pageWidth - 20
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight)
+      pdf.save(`${invoice.invoiceNumber || 'invoice'}.pdf`)
+    } catch (error) {
+      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   const downloadJSON = () => {
