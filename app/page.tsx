@@ -40,7 +40,6 @@ export default function InvoiceGenerator() {
     if (!previewRef.current) return
 
     const html2canvas = (await import('html2canvas')).default
-    const jsPDF = (await import('jspdf')).default
 
     const canvas = await html2canvas(previewRef.current, {
       scale: 2,
@@ -50,6 +49,10 @@ export default function InvoiceGenerator() {
     })
 
     const imgData = canvas.toDataURL('image/png')
+    
+    // Use jspdf es module to avoid Node.js worker issues
+    const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
+    
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'px',
