@@ -8,7 +8,6 @@ import { AISettingsDialog } from '@/components/ai-settings-dialog'
 import { InvoiceForm } from '@/components/invoice-form'
 import { InvoicePreview } from '@/components/invoice-preview'
 import { TemplateManager } from '@/components/template-manager'
-import { CustomerManager } from '@/components/customer-manager'
 import { InvoiceData, generateInvoiceNumber } from '@/lib/invoice-types'
 import { InvoiceTemplate } from '@/lib/template-types'
 import { getActiveTemplate } from '@/lib/template-store'
@@ -58,29 +57,46 @@ export default function InvoiceGenerator() {
   }
 
   const downloadPDF = async () => {
-    if (!previewRef.current) return
+    if (!previewRef.current) {
+      console.error('[v0] PDF Error: previewRef is not available')
+      return
+    }
 
-    const html2canvas = (await import('html2canvas')).default
+    try {
+      const html2canvas = (await import('html2canvas')).default
 
-    const canvas = await html2canvas(previewRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: template?.backgroundColor ?? '#ffffff',
-    })
+      console.log('[v0] Starting PDF export with canvas...')
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 800,
+      })
 
-    const imgData = canvas.toDataURL('image/png')
+      const imgData = canvas.toDataURL('image/png')
+      console.log('[v0] Canvas rendered, converting to PDF...')
 
-    const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
+      const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
 
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'px',
-      format: [canvas.width / 2, canvas.height / 2],
-    })
+      const pageWidth = 210
+      const pageHeight = 297
+      const imgWidth = pageWidth - 20
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2)
-    pdf.save(`${invoice.invoiceNumber || 'invoice'}.pdf`)
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight)
+      pdf.save(`${invoice.invoiceNumber || 'invoice'}.pdf`)
+      console.log('[v0] PDF saved successfully')
+    } catch (error) {
+      console.error('[v0] PDF Export Error:', error)
+      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   const downloadJSON = () => {
@@ -144,7 +160,6 @@ export default function InvoiceGenerator() {
 
             <div className="flex items-center gap-2">
               <TemplateManager onTemplateChange={handleTemplateChange} />
-              <CustomerManager />
               <label className="cursor-pointer">
                 <input
                   type="file"
@@ -230,7 +245,6 @@ export default function InvoiceGenerator() {
             <p><strong>2. Pull a model:</strong> Run <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">ollama pull llama3.2</code> in your terminal.</p>
             <p><strong>3. Configure:</strong> Click the settings icon above to configure your AI provider. Ollama runs on <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">http://localhost:11434</code> by default.</p>
             <p><strong>4. Templates:</strong> Click &quot;Templates&quot; to choose or create branded invoice designs with custom colors, layouts, and company info.</p>
-            <p><strong>5. Customers:</strong> Click &quot;Customers&quot; to save client details. Re-use them for future invoices with one click. Export/import as JSON for backup.</p>
           </div>
         </div>
       </footer>

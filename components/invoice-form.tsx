@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Sparkles, Loader2, Users, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,15 +17,6 @@ import {
   calculateInvoiceTotals,
 } from '@/lib/invoice-types'
 import { getAISettings } from '@/lib/ai-settings-store'
-import { Customer } from '@/lib/customer-types'
-import { getCustomers } from '@/lib/customer-store'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 
 interface InvoiceFormProps {
   invoice: InvoiceData
@@ -35,25 +26,6 @@ interface InvoiceFormProps {
 
 export function InvoiceForm({ invoice, onChange, templateName }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState<string | null>(null)
-  const [customers, setCustomers] = useState<Customer[]>([])
-
-  useEffect(() => {
-    setCustomers(getCustomers())
-  }, [])
-
-  const refreshCustomers = () => {
-    setCustomers(getCustomers())
-  }
-
-  const applyCustomer = (customer: Customer) => {
-    onChange({
-      ...invoice,
-      clientName: customer.company ? `${customer.name} (${customer.company})` : customer.name,
-      clientEmail: customer.email,
-      clientAddress: customer.address,
-      clientPhone: customer.phone,
-    })
-  }
 
   const updateField = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
     onChange({ ...invoice, [field]: value })
@@ -280,46 +252,8 @@ export function InvoiceForm({ invoice, onChange, templateName }: InvoiceFormProp
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <CardTitle className="text-lg">Bill To (Client)</CardTitle>
-            <DropdownMenu onOpenChange={(open) => open && refreshCustomers()}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Users className="mr-2 h-4 w-4" />
-                  Saved
-                  <ChevronDown className="ml-2 h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                {customers.length === 0 ? (
-                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                    No saved customers yet.
-                    <br />
-                    <span className="text-xs">Use the Customers button in the header to add some.</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      Select a customer
-                    </div>
-                    <DropdownMenuSeparator />
-                    {customers.map((customer) => (
-                      <DropdownMenuItem
-                        key={customer.id}
-                        onClick={() => applyCustomer(customer)}
-                        className="flex flex-col items-start gap-0.5 cursor-pointer"
-                      >
-                        <span className="font-medium">{customer.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {customer.company ? `${customer.company} · ` : ''}
-                          {customer.email}
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
