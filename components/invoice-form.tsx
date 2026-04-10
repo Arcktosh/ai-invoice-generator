@@ -21,9 +21,10 @@ import { getAISettings } from '@/lib/ai-settings-store'
 interface InvoiceFormProps {
   invoice: InvoiceData
   onChange: (invoice: InvoiceData) => void
+  templateName?: string
 }
 
-export function InvoiceForm({ invoice, onChange }: InvoiceFormProps) {
+export function InvoiceForm({ invoice, onChange, templateName }: InvoiceFormProps) {
   const [aiLoading, setAiLoading] = useState<string | null>(null)
 
   const updateField = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => {
@@ -209,8 +210,13 @@ export function InvoiceForm({ invoice, onChange }: InvoiceFormProps) {
       {/* Sender & Client */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">From (Your Details)</CardTitle>
+            {templateName && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {templateName}
+              </span>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">

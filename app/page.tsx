@@ -1,13 +1,16 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Download, FileText, Eye, Edit3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AISettingsDialog } from '@/components/ai-settings-dialog'
 import { InvoiceForm } from '@/components/invoice-form'
 import { InvoicePreview } from '@/components/invoice-preview'
+import { TemplateManager } from '@/components/template-manager'
 import { InvoiceData, generateInvoiceNumber } from '@/lib/invoice-types'
+import { InvoiceTemplate } from '@/lib/template-types'
+import { getActiveTemplate } from '@/lib/template-store'
 
 function getDefaultInvoice(): InvoiceData {
   const today = new Date()
@@ -33,8 +36,25 @@ function getDefaultInvoice(): InvoiceData {
 
 export default function InvoiceGenerator() {
   const [invoice, setInvoice] = useState<InvoiceData>(getDefaultInvoice)
+  const [template, setTemplate] = useState<InvoiceTemplate | null>(null)
   const [activeTab, setActiveTab] = useState('edit')
   const previewRef = useRef<HTMLDivElement>(null)
+
+  // Load active template on mount (client only — localStorage)
+  useEffect(() => {
+    setTemplate(getActiveTemplate())
+  }, [])
+
+  const handleTemplateChange = (t: InvoiceTemplate) => {
+    setTemplate(t)
+    // Apply template defaults into the invoice if the fields are empty
+    setInvoice(prev => ({
+      ...prev,
+      taxRate: prev.taxRate === 0 && t.defaultTaxRate > 0 ? t.defaultTaxRate : prev.taxRate,
+      paymentTerms: !prev.paymentTerms && t.defaultPaymentTerms ? t.defaultPaymentTerms : prev.paymentTerms,
+      notes: !prev.notes && t.defaultNotes ? t.defaultNotes : prev.notes,
+    }))
+  }
 
   const downloadPDF = async () => {
     if (!previewRef.current) return
@@ -45,14 +65,13 @@ export default function InvoiceGenerator() {
       scale: 2,
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff',
+      backgroundColor: template?.backgroundColor ?? '#ffffff',
     })
 
     const imgData = canvas.toDataURL('image/png')
-    
-    // Use jspdf es module to avoid Node.js worker issues
+
     const { jsPDF } = await import('jspdf/dist/jspdf.es.min.js')
-    
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'px',
@@ -64,7 +83,8 @@ export default function InvoiceGenerator() {
   }
 
   const downloadJSON = () => {
-    const dataStr = JSON.stringify(invoice, null, 2)
+    const payload = { invoice, templateId: template?.id }
+    const dataStr = JSON.stringify(payload, null, 2)
     const blob = new Blob([dataStr], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -84,13 +104,27 @@ export default function InvoiceGenerator() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target?.result as string)
-        setInvoice(data)
+        // Support both old format (raw InvoiceData) and new format ({ invoice, templateId })
+        if (data.invoice) {
+          setInvoice(data.invoice)
+        } else {
+          setInvoice(data)
+        }
       } catch {
         alert('Invalid JSON file')
       }
     }
     reader.readAsText(file)
     event.target.value = ''
+  }
+
+  // Don't render preview until template is hydrated from localStorage
+  if (!template) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="text-sm text-neutral-400">Loading…</div>
+      </div>
+    )
   }
 
   return (
@@ -100,14 +134,15 @@ export default function InvoiceGenerator() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <FileText className="h-6 w-6 text-neutral-900" />
-              <h1 className="text-xl font-semibold text-neutral-900">Invoice Generator</h1>
+              <FileText className="h-5 w-5 text-neutral-900" />
+              <h1 className="text-lg font-semibold text-neutral-900">Invoice Generator</h1>
               <span className="hidden sm:inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
                 AI Powered
               </span>
             </div>
 
             <div className="flex items-center gap-2">
+              <TemplateManager onTemplateChange={handleTemplateChange} />
               <label className="cursor-pointer">
                 <input
                   type="file"
@@ -148,11 +183,11 @@ export default function InvoiceGenerator() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="edit">
-              <InvoiceForm invoice={invoice} onChange={setInvoice} />
+              <InvoiceForm invoice={invoice} onChange={setInvoice} templateName={template.name} />
             </TabsContent>
             <TabsContent value="preview">
               <div className="overflow-auto">
-                <InvoicePreview ref={previewRef} invoice={invoice} />
+                <InvoicePreview ref={previewRef} invoice={invoice} template={template} />
               </div>
             </TabsContent>
           </Tabs>
@@ -165,15 +200,20 @@ export default function InvoiceGenerator() {
               <Edit3 className="h-4 w-4" />
               Edit Invoice
             </h2>
-            <InvoiceForm invoice={invoice} onChange={setInvoice} />
+            <InvoiceForm invoice={invoice} onChange={setInvoice} templateName={template.name} />
           </div>
-          <div className="sticky top-24">
-            <h2 className="text-sm font-medium text-neutral-500 mb-4 flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Preview
-            </h2>
+          <div className="sticky top-24 self-start">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-neutral-500 flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Preview
+              </h2>
+              <span className="text-xs text-neutral-400 capitalize">
+                {template.layout} · {template.name}
+              </span>
+            </div>
             <div className="overflow-auto max-h-[calc(100vh-8rem)] rounded-lg border bg-neutral-100 p-4">
-              <InvoicePreview ref={previewRef} invoice={invoice} />
+              <InvoicePreview ref={previewRef} invoice={invoice} template={template} />
             </div>
           </div>
         </div>
@@ -186,8 +226,8 @@ export default function InvoiceGenerator() {
           <div className="text-sm text-neutral-600 space-y-2">
             <p><strong>1. Install Ollama:</strong> Visit <a href="https://ollama.ai" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ollama.ai</a> and follow the installation instructions for your OS.</p>
             <p><strong>2. Pull a model:</strong> Run <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">ollama pull llama3.2</code> in your terminal.</p>
-            <p><strong>3. Configure:</strong> Click the settings icon (⚙️) above to configure your AI provider. Ollama runs on <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">http://localhost:11434</code> by default.</p>
-            <p><strong>4. Start creating:</strong> Use the ✨ buttons to get AI-powered suggestions for descriptions, pricing, and notes!</p>
+            <p><strong>3. Configure:</strong> Click the settings icon above to configure your AI provider. Ollama runs on <code className="px-1.5 py-0.5 bg-neutral-100 rounded text-xs">http://localhost:11434</code> by default.</p>
+            <p><strong>4. Templates:</strong> Click &quot;Templates&quot; to choose or create branded invoice designs with custom colors, layouts, and company info.</p>
           </div>
         </div>
       </footer>
