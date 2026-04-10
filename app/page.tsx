@@ -62,38 +62,68 @@ export default function InvoiceGenerator() {
     try {
       const html2canvas = (await import('html2canvas')).default
 
-      // Clone the element and convert lab() colors to rgb for html2canvas compatibility
+      // Clone the element for PDF rendering
       const clone = previewRef.current.cloneNode(true) as HTMLElement
       clone.style.position = 'absolute'
       clone.style.left = '-9999px'
       clone.style.top = '0'
       clone.style.width = `${previewRef.current.offsetWidth}px`
-      document.body.appendChild(clone)
+      
+      // Inject a style tag to override all Tailwind CSS variables with RGB fallbacks
+      // This fixes html2canvas not supporting lab() color function
+      const styleOverride = document.createElement('style')
+      styleOverride.textContent = `
+        * {
+          --background: 255 255 255 !important;
+          --foreground: 10 10 10 !important;
+          --card: 255 255 255 !important;
+          --card-foreground: 10 10 10 !important;
+          --popover: 255 255 255 !important;
+          --popover-foreground: 10 10 10 !important;
+          --primary: 24 24 27 !important;
+          --primary-foreground: 250 250 250 !important;
+          --secondary: 244 244 245 !important;
+          --secondary-foreground: 24 24 27 !important;
+          --muted: 244 244 245 !important;
+          --muted-foreground: 113 113 122 !important;
+          --accent: 244 244 245 !important;
+          --accent-foreground: 24 24 27 !important;
+          --destructive: 239 68 68 !important;
+          --destructive-foreground: 250 250 250 !important;
+          --border: 228 228 231 !important;
+          --input: 228 228 231 !important;
+          --ring: 24 24 27 !important;
+        }
+      `
+      clone.prepend(styleOverride)
 
-      // Convert all lab() colors to rgb by reading computed styles
-      const convertLabColors = (el: HTMLElement) => {
+      // Also directly set computed RGB values on all elements
+      const setRGBColors = (el: HTMLElement) => {
         const computed = getComputedStyle(el)
-        const propsToCheck = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor']
+        const colorProps = ['color', 'background-color', 'border-color', 'border-top-color', 'border-bottom-color', 'border-left-color', 'border-right-color']
         
-        propsToCheck.forEach(prop => {
-          const value = computed.getPropertyValue(prop.replace(/([A-Z])/g, '-$1').toLowerCase())
-          if (value && value.includes('lab(')) {
-            // Create a temp element to convert lab to rgb
-            const temp = document.createElement('div')
-            temp.style.color = value
-            document.body.appendChild(temp)
-            const rgb = getComputedStyle(temp).color
-            document.body.removeChild(temp)
-            ;(el.style as Record<string, string>)[prop] = rgb
+        colorProps.forEach(prop => {
+          const value = computed.getPropertyValue(prop)
+          if (value && (value.includes('lab(') || value.includes('oklch(') || value.includes('oklab('))) {
+            // Force to a safe fallback
+            const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
+            if (prop === 'color') {
+              (el.style as Record<string, string>)[camelProp] = '#0a0a0a'
+            } else if (prop === 'background-color') {
+              (el.style as Record<string, string>)[camelProp] = '#ffffff'
+            } else {
+              (el.style as Record<string, string>)[camelProp] = '#e4e4e7'
+            }
           }
         })
 
         Array.from(el.children).forEach(child => {
-          if (child instanceof HTMLElement) convertLabColors(child)
+          if (child instanceof HTMLElement) setRGBColors(child)
         })
       }
 
-      convertLabColors(clone)
+      document.body.appendChild(clone)
+      setRGBColors(clone)
 
       const canvas = await html2canvas(clone, {
         scale: 2,
